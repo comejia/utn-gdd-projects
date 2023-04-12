@@ -1,2 +1,5 @@
-# utn-gdd-bazar
-TP Bazar de Gestion de Datos
+# Proyectos de la Gestion de Datos
+
+Este repositorio incluye practica de:
+* SQL del modelo **Productos** y **Store**
+* TP Integrador Delivery
