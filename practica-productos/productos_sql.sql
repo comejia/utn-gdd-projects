@@ -19,11 +19,12 @@ ORDER BY cantidad_vendida ASC
 
 -- 3) Realizar una consulta que muestre código de producto, nombre de producto y el stock total, 
 -- sin importar en que deposito se encuentre, los datos deben ser ordenados por nombre del artículo de menor a mayor.
-SELECT p.prod_codigo, p.prod_detalle, SUM(s.stoc_cantidad) cantidad
+SELECT p.prod_codigo, p.prod_detalle, SUM(s.stoc_cantidad) stock_total
 FROM Producto p
-INNER JOIN STOCK s ON s.stoc_producto = p.prod_codigo
-INNER JOIN DEPOSITO d ON d.depo_codigo = s.stoc_deposito
+INNER JOIN STOCK s ON (s.stoc_producto = p.prod_codigo)
+--INNER JOIN DEPOSITO d ON (d.depo_codigo = s.stoc_deposito) -- no se necesita pues no se usa
 GROUP BY p.prod_codigo, p.prod_detalle
+ORDER BY p.prod_detalle ASC
 
 
 -- 4) Realizar una consulta que muestre para todos los artículos código, detalle y cantidad de artículos que lo componen. 
