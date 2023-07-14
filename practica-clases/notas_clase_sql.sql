@@ -60,6 +60,18 @@ GROUP BY f.fami_id, f.fami_detalle
 -- del producto cartesiano)
 
 
+-- Clase 4: 22/04/2023
+
+-- 1) SUB SELECT ESTATICO
+SELECT * FROM Cliente
+--WHERE clie_codigo IN 
+
+
+-- 4) UNION
+SELECT clie_codigo, clie_razon_social, 0 FROM Cliente
+WHERE clie_codigo NOT IN (SELECT fact_cliente FROM Factura f)
+
+
 
 
 
