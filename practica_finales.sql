@@ -288,7 +288,7 @@ select * from final -- al tener unique, los valores de la tabla se ordenan: null
 
 
 -- Final 22/12/2022
--- 1b) No esta permitido instead of para una misma tabla y evento
+-- 1b)
 create table borrar(
 	numero int
 )
@@ -305,5 +305,49 @@ after insert
 as
 	print 'Trigger 2'
 
--- Test: se ejecuta ambos triggers
+-- Test: se ejecuta ambos triggers. Puede haber mas de una trigger after para la misma tabla y evento
 insert into borrar values (10), (11)
+
+-- 3)
+create table mundial_futbol(
+	id int primary key,
+	anio int not null,
+	pais_campeon varchar(50) not null,
+	pais_subcampeon varchar(50) not null
+)
+insert into mundial_futbol (id, anio, pais_campeon, pais_subcampeon) values
+	(1, 1930, 'uruguay', 'argentina'),
+	(2, 1934, 'italia', 'checoslovaquia'),
+	(3, 1938, 'italia', 'hungria'),--
+	(4, 1950, 'brasil', 'uruguay'),
+	(5, 1954, 'alemania', 'hungria'),
+	(6, 1958, 'brasil', 'suecia'),--
+	(7, 1962, 'brasil', 'checoslovaquia'),--
+	--(8, 1966, 'inglaterra', 'alemania'),
+	--(9, 1970, 'brasil', 'italia'),
+	(10, 1974, 'alemania', 'holanda'),--
+	(22, 2022, 'argentina', 'francia')
+
+-- 3a) Mostrar el ultimo que gano un mundial que solo tienen UNA conquista
+--select pais_campeon from mundial_futbol
+--group by pais_campeon
+--having count(*) = 1
+--order by anio desc -- error porque anio no esta en el group by. Se esta usando funciona agregada: count
+
+select top 1 pais_campeon, anio from mundial_futbol
+where pais_campeon in 
+	(select m.pais_campeon from mundial_futbol m
+	group by m.pais_campeon
+	having count(*) = 1)
+order by anio desc
+
+-- Solucion que cumple con el enunciado
+select pais_campeon, anio from mundial_futbol m
+where not exists 
+	(select m1.pais_campeon from mundial_futbol m1
+	where m.anio > m1.anio and m.pais_campeon = m1.pais_campeon)
+order by anio desc
+
+
+
+
