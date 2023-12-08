@@ -342,12 +342,35 @@ where pais_campeon in
 order by anio desc
 
 -- Solucion que cumple con el enunciado
-select pais_campeon, anio from mundial_futbol m
+select top 1 pais_campeon, anio from mundial_futbol m
 where not exists 
 	(select m1.pais_campeon from mundial_futbol m1
 	where m.anio > m1.anio and m.pais_campeon = m1.pais_campeon)
 order by anio desc
+go
 
+-- 3b)
+alter trigger tg_futbol on mundial_futbol
+after insert
+as
+	if (select count(*) from inserted where pais_campeon = pais_subcampeon) > 0
+		begin
+			raiserror('El pais campeon y el sub campeon no pueden ser el mismo.', 1, 1)
+			rollback transaction
+			return
+		end
 
+	if (select count(*) from mundial_futbol m1, inserted i
+		where abs(m1.anio - i.anio) < 4 and m1.id != i.id) > 0
+		begin
+			raiserror('La diferencia entre cada mundial no puede ser menor a 4 años', 1, 1)
+			rollback transaction
+			return
+		end
 
+-- Tests
+insert into mundial_futbol (id, anio, pais_campeon, pais_subcampeon) values
+	(30, 2000, 'peru', 'peru'),
+	(31, 2024, 'argentina', 'brasil')
 
+select * from mundial_futbol
