@@ -1,5 +1,40 @@
 use Pruebas
 
+-- Final 05/12/2023
+-- 3)
+create table juego(
+	jugador int,
+	jugada int,
+	carta int,
+	constraint pk_juego primary key (jugador, jugada)
+)
+insert into juego values
+	(1, 1, 3), (2, 1, 5),
+	(1, 2, 1), (2, 2, 6),
+	(1, 3, 7), (2, 3, 7),
+	(1, 4, 3), (2, 4, 1),
+	(1, 5, 10), (2, 5, 4),
+	(1, 6, 11), (2, 6, 9),
+	(1, 7, 5), (2, 7, 8),
+	(1, 8, 2), (2, 8, 5),
+	(1, 9, 8), (2, 9, 7)
+	truncate table juego
+-- 3a)
+select j1.jugada, j1.jugador, j1.carta
+from juego j1
+order by j1.jugada,
+	(case when j1.jugador = (select top 1 j2.jugador from juego j2 where j2.jugada = j1.jugada - 1
+							order by j2.carta desc)
+	then 1 else 0 end) desc,
+	j1.jugador asc
+
+-- 3b)
+select jugador, max(carta) mayor_carta
+from juego
+group by jugador
+order by max(carta) desc, jugador asc
+
+
 -- Final 01/08/2023
 -- 3)
 create table Producto(
@@ -328,12 +363,14 @@ insert into mundial_futbol (id, anio, pais_campeon, pais_subcampeon) values
 	(10, 1974, 'alemania', 'holanda'),--
 	(22, 2022, 'argentina', 'francia')
 
--- 3a) Mostrar el ultimo que gano un mundial que solo tienen UNA conquista
+-- 3a) Interprete mal, pero lo dejo para tenerlo en cuenta. La solucion es para algo como:
+-- "Mostrar el ultimo que gano un mundial que solo tienen UNA conquista"
 --select pais_campeon from mundial_futbol
 --group by pais_campeon
 --having count(*) = 1
 --order by anio desc -- error porque anio no esta en el group by. Se esta usando funciona agregada: count
-
+					-- Si pongo anio en el group by, el conjunto se vuelve a abrir por lo que el resultado es incorrecto
+					-- Una solucion es haciendo una subconsulta
 select top 1 pais_campeon, anio from mundial_futbol
 where pais_campeon in 
 	(select m.pais_campeon from mundial_futbol m
@@ -374,3 +411,255 @@ insert into mundial_futbol (id, anio, pais_campeon, pais_subcampeon) values
 	(31, 2024, 'argentina', 'brasil')
 
 select * from mundial_futbol
+
+
+-- Final 16/12/2022
+-- 3)
+create table envases(
+	enva_codigo int primary key,
+	enva_detalle varchar(20)
+)
+create table productos (
+	prod_codigo int primary key,
+	prod_envase int foreign key references envases(enva_codigo),
+	prod_detalle varchar(20)
+)
+create table depositos(
+	depo_codigo int primary key,
+	depo_nombre varchar(20)
+)
+create table stocks(
+	stoc_producto int,
+	stoc_deposito int,
+	stoc_cantidad int
+
+	constraint pk_stock primary key (stoc_producto, stoc_deposito),
+	constraint fk_producto foreign key (stoc_producto) references productos(prod_codigo),
+	constraint fk_deposito foreign key (stoc_deposito) references depositos(depo_codigo)
+)
+-- llenar tablas para probar!!
+-- 3a)
+select p.prod_codigo, 
+	p.prod_envase,
+	(select top 1 s1.stoc_deposito from stocks s1 where s1.stoc_producto = p.prod_codigo
+		order by s1.stoc_cantidad desc),
+	(select sum(s2.stoc_cantidad) from stocks s2 where s2.stoc_producto = p.prod_codigo)
+from productos p
+join stocks s on (s.stoc_producto = p.prod_codigo)
+where s.stoc_cantidad > 0 and p.prod_envase in
+	(select top 3 e1.enva_codigo from envases e1 join productos p1 on e1.enva_codigo = p1.prod_envase
+	group by e1.enva_codigo
+	order by count(e1.enva_codigo) desc)
+group by p.prod_codigo, p.prod_envase
+having count(p.prod_codigo) > ((select count(*) from depositos) / 2)
+order by case when p.prod_codigo in 
+	(select s3.stoc_producto from stocks s3 
+	group by s3.stoc_producto 
+	having count(s3.stoc_producto) = (select count(*) from depositos))
+then 1 else 0 end
+
+-- 3b)
+create table borrar(
+	codigo int primary key,
+	detalle varchar(10)
+)
+insert into borrar values(1, 'X')
+
+-- Proceso A
+begin transaction
+	set transaction isolation level repeatable read
+	
+	select * from borrar where codigo = 1
+
+	update borrar set detalle='A'
+	where codigo = 1
+commit
+
+-- Proceso B
+begin transaction
+	set transaction isolation level read committed
+	
+	select * from borrar where codigo = 1
+
+	update borrar set detalle='B'
+	where codigo = 1
+commit
+
+
+-- Final 06/12/2022
+-- 3a)
+select p.prod_codigo, 
+	(select top 1 s1.stoc_deposito from stocks s1 where s1.stoc_producto = p.prod_codigo
+		order by s1.stoc_cantidad desc),
+	(select sum(s2.stoc_cantidad) from stocks s2 where s2.stoc_producto = p.prod_codigo) -- Verificar si es solamente hacer: sum(stoc_cantidad)
+from productos p
+join stocks s on (s.stoc_producto = p.prod_codigo)
+where s.stoc_cantidad > 0
+group by p.prod_codigo
+having count(p.prod_codigo) > ((select count(*) from depositos) / 2)
+order by case when p.prod_codigo in 
+	(select s3.stoc_producto from stocks s3 
+	where s3.stoc_cantidad > 0
+	group by s3.stoc_producto 
+	having count(s3.stoc_producto) = (select count(*) from depositos))
+then 1 else 0 end
+
+-- 3b: Ambos procesos se bloquean. Con nivel Repeatable read sucede lo mismo
+-- Proceso A
+begin transaction
+	set transaction isolation level serializable
+	select * from borrar where codigo = 1
+	update borrar set detalle='A'
+	where codigo = 1
+commit
+
+-- Proceso B
+begin transaction
+	set transaction isolation level serializable
+	select * from borrar where codigo = 1
+	update borrar set detalle='B'
+	where codigo = 1
+commit
+
+
+-- Final 09/09/2022
+-- 3a) No importa el nivel de aislamiento, el resultado es el mismo
+create table prueba (col int not null)
+
+-- Proceso 1
+begin transaction
+	set transaction isolation level serializable
+	declare @a as int
+	declare @b as int
+	select @a=count(*) from prueba
+	select @b=count(*) from prueba
+
+	print @a
+	print @b
+commit
+
+-- Proceso 2
+begin transaction
+	set transaction isolation level serializable
+	
+	insert into prueba (col)
+	select max(col)+1 from prueba -- El max devuelve null, y +1 sigue siendo null
+commit
+
+-- 3b) Se obtienen los dos numeros mas grandes
+create table tablita(
+	numero int unique
+)
+insert into tablita values
+	(1), (4), (100), (5), (2), (null), (20), (30), (10), (69), (8)
+
+select max(t1.numero), max(t2.numero) from tablita t1, tablita t2 where t1.numero > t2.numero
+
+
+-- Final XX/YY/2022 **
+-- 3a)
+use Productos -- DB que usa Reinosa en la practica
+
+select p.prod_detalle nombre_producto,
+	isnull((select p2.prod_detalle from Producto p2 where p2.prod_codigo = c.comp_componente), 'sin compuesto') nombre_componente,
+	isnull(c.comp_cantidad, 0) cant_unidades
+from Producto p
+left join Composicion c on (c.comp_producto = p.prod_codigo)
+
+-- 3b)
+go
+alter trigger tg_validar_precio on Composicion
+after insert, update
+as	
+	if exists(select i.comp_producto
+		from inserted i
+		join Producto p1 on (i.comp_producto = p1.prod_codigo)
+		join Producto p2 on (i.comp_componente = p2.prod_codigo)
+		group by i.comp_producto, p2.prod_precio, p1.prod_precio
+		having sum(i.comp_cantidad * p2.prod_precio) != p1.prod_precio)
+	begin
+		raiserror('Precio incorrecto', 1, 1)
+		rollback transaction
+		return
+	end
+
+-- Para que sea mas robusto, tambien habria que crear un trigger sobre Producto cuando se actualiza
+-- Si se actualiza un producto compuesto, se debe validar que siga cumpliendo la regla del precio
+
+
+-- Final XX/YY/2022 ****
+-- 3)
+create table pais(
+	id int primary key,
+	detalle varchar(20)
+)
+insert into pais values (1, 'austria'), (2, 'venezuela'), (3, 'zamoa'), (4, 'inglaterra'), 
+	(5, 'argentina'), (6, 'chile'), (7, 'paraguay'), (8, 'uruguay'), (9, 'mexico'), 
+	(10, 'eeuu'), (11, 'marruecos'), (12, 'belgica'), (13, 'francia'), (14, 'lituania')
+
+-- 3a) No me queda claro el enunciado, por lo que devuelvo los primeros 5 paises, ordenados por detalle,
+-- y los ultimos 5, tambien ordenados por detalle
+select id, detalle from pais
+where id in (select top 5 id from pais order by detalle asc) or
+		id in (select top 5 id from pais order by detalle desc)
+order by detalle
+
+-- 3b)
+create table provincia(
+	id int primary key,
+	id_pais int foreign key references pais(id),
+	habitantes int
+)
+insert into provincia values 
+	(1, 5, 10), (2, 5, 1000), (3, 5, 100), 
+	(6, 2, 10), (8, 2, 10),
+	(25, 9, 55)
+
+select pa.id, sum(pr.habitantes), count(*)
+from pais pa, provincia pr
+where pa.id = pr.id_pais
+group by pa.id
+
+
+-- Final 21/02/2018
+-- 3) Tablas idem Final XX/YY/2022 ****
+create table ciudad(
+	id int primary key,
+	id_provincia int foreign key references provincia(id),
+	nombre varchar(20)
+)
+insert into ciudad values
+	(1, 1, 'caba'), (2, 1, 'lanus'), (3, 1, 'tigre')
+
+-- 3a)
+go
+alter trigger tg_negocio on provincia
+after insert, update
+as
+	if not exists(select c.id from ciudad c, inserted i where c.id_provincia = i.id)
+	begin
+		update provincia set habitantes = null
+		where id in (select id from inserted)
+	end
+	else
+	begin
+		if exists(select * from inserted where habitantes <= 0)
+		begin
+			raiserror('Lo habitantes deben ser mayor a 0', 1, 1)
+			rollback transaction
+			return
+		end
+	end
+
+-- Tests: Siempre que se crea una provincia, no va a tener ciudades
+insert into provincia values (50, 5, 10) -- provincia sin ciudades
+select * from provincia
+
+insert into ciudad values (99, 50, 'tierra') -- creo una ciudad para la nueva provincia
+
+update provincia set habitantes = -10 -- habitantes <= 0
+where id = 50
+
+update provincia set habitantes = 10 -- habitantes > 0
+where id = 50
+
