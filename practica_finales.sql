@@ -35,6 +35,34 @@ group by jugador
 order by max(carta) desc, jugador asc
 
 
+-- Final 27/09/2023
+-- 3)
+create table parametros(
+	clave int primary key,
+	valor varchar(100) null
+)
+-- 3a)
+insert into parametros values 
+	(1, '1'), (2, '2'), (3, '3'), (4, '4'), (5, '5'), (6, '6'), (7, '7'), (8, '8')
+
+go
+create procedure sp_increment_parametro(@id int)
+as
+begin transaction
+	declare @valor varchar(100)
+	select @valor = valor from parametros where clave = @id
+	update parametros set valor = @valor + 1
+	where clave = @id
+commit
+
+-- Test: hay problema de ejecucion si valor no tiene un numero como tal, osea tiene un char cualquiera
+exec sp_increment_parametro 5
+select * from parametros
+
+-- 3b)
+select min(f1.clave), max(f2.clave) from parametros f1, parametros f2
+where f1.clave > f2.clave
+
 -- Final 01/08/2023
 -- 3)
 create table Producto(
@@ -160,6 +188,21 @@ as
 
 	close tg_mi_cursor
 	deallocate tg_mi_cursor
+
+-- Solucion 3: Con trigger (mas simple), si se inserta un duplicado directamente se hace un rollback
+go
+alter trigger tg_evitar_duplicados_v2 on Stock
+after insert
+as
+	-- select * from inserted
+	if exists(select 1 from Stock i 
+			group by i.id_deposito, i.id_producto
+			having count(*) > 1)
+	begin
+		raiserror('Ya existe una fila para el deposito y producto insertado. Se debe actualizar', 1, 1)
+		rollback transaction
+		return
+	end
 
 
 -- Final 25/07/2023
@@ -289,7 +332,8 @@ begin transaction
 	-- insert into tabla values (15)
 commit
 
--- 3b) Resuelto en: Final 01/08/2023
+-- 3b) Idem Final 01/08/2023
+
 
 -- Final 22/02/2023
 -- 1b)
@@ -491,7 +535,7 @@ commit
 select p.prod_codigo, 
 	(select top 1 s1.stoc_deposito from stocks s1 where s1.stoc_producto = p.prod_codigo
 		order by s1.stoc_cantidad desc),
-	(select sum(s2.stoc_cantidad) from stocks s2 where s2.stoc_producto = p.prod_codigo) -- Verificar si es solamente hacer: sum(stoc_cantidad)
+	(select sum(s2.stoc_cantidad) from stocks s2 where s2.stoc_producto = p.prod_codigo) -- Verificar si con hacer sum(stoc_cantidad) funciona igual
 from productos p
 join stocks s on (s.stoc_producto = p.prod_codigo)
 where s.stoc_cantidad > 0
@@ -565,6 +609,18 @@ select p.prod_detalle nombre_producto,
 	isnull(c.comp_cantidad, 0) cant_unidades
 from Producto p
 left join Composicion c on (c.comp_producto = p.prod_codigo)
+
+-- Otra solucion (con 2 join)
+select p.prod_detalle nombre_producto,
+	isnull(p2.prod_detalle, 'sin compuesto') nombre_componente,
+	isnull(c.comp_cantidad, 0) cant_unidades
+from Producto p
+left join Composicion c on (c.comp_producto = p.prod_codigo)
+left join Producto p2 on (p2.prod_codigo = c.comp_componente)
+
+create table borrar(
+	clave varchar(50)
+)
 
 -- 3b)
 go
@@ -652,14 +708,21 @@ as
 	end
 
 -- Tests: Siempre que se crea una provincia, no va a tener ciudades
-insert into provincia values (50, 5, 10) -- provincia sin ciudades
+insert into provincia values (50, 5, 10) -- provincia sin ciudades --> el trigger deja habitantes en null
 select * from provincia
 
 insert into ciudad values (99, 50, 'tierra') -- creo una ciudad para la nueva provincia
 
-update provincia set habitantes = -10 -- habitantes <= 0
+update provincia set habitantes = -10 -- habitantes <= 0 --> error
 where id = 50
 
-update provincia set habitantes = 10 -- habitantes > 0
+update provincia set habitantes = 10 -- habitantes > 0 --> Ok
 where id = 50
 
+-- 3b)
+select p.id, isnull(p.habitantes, 0), pa.detalle
+from provincia p join pais pa on (p.id_pais = pa.id)
+where p.habitantes = (select max(p2.habitantes) from provincia p2 where p2.id_pais = pa.id)
+order by p.habitantes
+
+select * from provincia
