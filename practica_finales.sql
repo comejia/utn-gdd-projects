@@ -36,6 +36,17 @@ order by max(carta) desc, jugador asc
 
 
 -- Final 27/09/2023
+-- 1a)
+go
+alter function fn_return_null()
+returns int as
+begin
+	return null
+end
+-- Test
+select *, dbo.fn_return_null() from borrar
+
+
 -- 3)
 create table parametros(
 	clave int primary key,
@@ -62,6 +73,7 @@ select * from parametros
 -- 3b)
 select min(f1.clave), max(f2.clave) from parametros f1, parametros f2
 where f1.clave > f2.clave
+
 
 -- Final 01/08/2023
 -- 3)
@@ -435,19 +447,19 @@ alter trigger tg_futbol on mundial_futbol
 after insert
 as
 	if (select count(*) from inserted where pais_campeon = pais_subcampeon) > 0
-		begin
-			raiserror('El pais campeon y el sub campeon no pueden ser el mismo.', 1, 1)
-			rollback transaction
-			return
-		end
+	begin
+		raiserror('El pais campeon y el sub campeon no pueden ser el mismo.', 1, 1)
+		rollback transaction
+		return
+	end
 
 	if (select count(*) from mundial_futbol m1, inserted i
 		where abs(m1.anio - i.anio) < 4 and m1.id != i.id) > 0
-		begin
-			raiserror('La diferencia entre cada mundial no puede ser menor a 4 años', 1, 1)
-			rollback transaction
-			return
-		end
+	begin
+		raiserror('La diferencia entre cada mundial no puede ser menor a 4 años', 1, 1)
+		rollback transaction
+		return
+	end
 
 -- Tests
 insert into mundial_futbol (id, anio, pais_campeon, pais_subcampeon) values
@@ -617,10 +629,6 @@ select p.prod_detalle nombre_producto,
 from Producto p
 left join Composicion c on (c.comp_producto = p.prod_codigo)
 left join Producto p2 on (p2.prod_codigo = c.comp_componente)
-
-create table borrar(
-	clave varchar(50)
-)
 
 -- 3b)
 go
